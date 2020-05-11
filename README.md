@@ -1,5 +1,9 @@
 # hpc_lecture
 
+- Student id: 18M38073
+- Name: WEI, Liang
+
+
 |          | Topic                                | Sample code               |
 | -------- | ------------------------------------ | ------------------------- |
 | Class 1  | Introduction to parallel programming |                           |
