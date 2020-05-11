@@ -1,12 +1,16 @@
 #include <cstdio>
 #include <cstdlib>
 #include <vector>
+#include <ctime>
 
 template<class T>
 void merge(std::vector<T>& vec, int begin, int mid, int end) {
   std::vector<T> tmp(end-begin+1);
   int left = begin;
   int right = mid+1;
+
+#pragma omp parallel
+#pragma omp for
   for (int i=0; i<tmp.size(); i++) { 
     if (left > mid)
       tmp[i] = vec[right++];
@@ -25,13 +29,17 @@ template<class T>
 void merge_sort(std::vector<T>& vec, int begin, int end) {
   if(begin < end) {
     int mid = (begin + end) / 2;
+#pragma omp task shared(vec) if( mid-begin+1 >= 3 )
     merge_sort(vec, begin, mid);
+#pragma omp task shared(vec) if( end-mid >= 3 )
     merge_sort(vec, mid+1, end);
+#pragma omp taskwait
     merge(vec, begin, mid, end);
   }
 }
 
 int main() {
+  srand(time(NULL));
   int n = 20;
   std::vector<int> vec(n);
   for (int i=0; i<n; i++) {
@@ -40,6 +48,8 @@ int main() {
   }
   printf("\n");
 
+#pragma omp parallel
+#pragma omp single
   merge_sort(vec, 0, n-1);
 
   for (int i=0; i<n; i++) {
