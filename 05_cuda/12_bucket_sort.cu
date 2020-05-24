@@ -3,9 +3,15 @@
 #include <vector>
 
 
-__global__ void bucketSort( int *key, int *bucket, int range ){
+__global__ void bucketSort( int *key, int keylen, int *bucket, int range ){
 	int rank = blockIdx.x * blockDim.x + threadIdx.x;
 	
+	// I found that if the numbers of threads in each block are not equal
+	// there are some bugs.
+	// So it's better to filter high rank process to avoid to
+	// exceed the upper limit.
+	if( rank >= keylen )
+		return;
 	
 	// Initialize bucket[] in global memory
 	if( rank < range )	
@@ -17,7 +23,8 @@ __global__ void bucketSort( int *key, int *bucket, int range ){
 	atomicAdd( bucket+key[rank], 1 );
 	__syncthreads();
 	
-	/*
+	// FOR DEBUG
+	/* 
 	if( rank == 0 ){
 		printf("\n");
 		for( int i = 0; i < range; i++ )
@@ -41,7 +48,7 @@ __global__ void bucketSort( int *key, int *bucket, int range ){
 
 int main() {
   const int n = 50;
-  const int m = 25;
+  const int m = 20;
   const int range = 5;
   
   //std::vector<int> key(n);
@@ -59,7 +66,7 @@ int main() {
   
 
   // `key` and `bucket` will reside in global memory
-  bucketSort<<< (n+m-1)/m, m >>>( key, bucket, range );
+  bucketSort<<< (n+m-1)/m, m >>>( key, n, bucket, range );
  	
 
   /*
