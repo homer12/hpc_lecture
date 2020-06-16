@@ -65,10 +65,11 @@ void cavity_flow( int nt,
 	float dt, float dx, float dy,
 	matrix &p, float rho, float nu, int nit){
 	
-	matrix b = p;
 	
 	int row = u.size();
 	int col = u[0].size();
+	
+	matrix b(row, vector<float>(col, 0));
 	float tmp;
 
 	for( int t = 0; t < nt; t++ ){
