@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <vector>
+#include <ctime>
 
 
 __global__ void bucketSort( int *key, int keylen, int *bucket, int range ){
@@ -56,9 +57,7 @@ int main() {
   cudaMallocManaged( &key, n*sizeof(int) );
   for (int i=0; i<n; i++) {
     key[i] = rand() % range;
-    printf("%d ",key[i]);
   }
-  printf("\n");
 
   //std::vector<int> bucket(range); 
   int *bucket;
@@ -66,26 +65,10 @@ int main() {
   
 
   // `key` and `bucket` will reside in global memory
+  clock_t before = clock();
   bucketSort<<< (n+m-1)/m, m >>>( key, n, bucket, range );
+  clock_t after = clock();
  	
-
-  /*
-  for (int i=0; i<range; i++) {
-    bucket[i] = 0;
-  }
-  for (int i=0; i<n; i++) {
-    bucket[key[i]]++;
-  }
-  for (int i=0, j=0; i<range; i++) {
-    for (; bucket[i]>0; bucket[i]--) {
-      key[j++] = i;
-    }
-  }
-  */
   
   cudaDeviceSynchronize();
-  for (int i=0; i<n; i++) {
-    printf("%d ",key[i]);
-  }
-  printf("\n");
 }
