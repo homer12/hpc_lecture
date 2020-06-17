@@ -9,6 +9,29 @@ typedef vector<vector<float>> matrix;
 
 int irank, nsize;
 
+
+void allgather_helper( matrix &mat, int beginRow, int endRow ){
+	int row = mat.size();
+	int col = mat[0].size();
+	
+	// convert b to 1-D vector
+	vector<float> buf;
+	for( int j = 0; j < row; j++ )
+		for( int i = 0; i < col; i++ )
+            buf.push_back( mat[j][i] );
+	vector<float> rbuf(row*col);
+
+    // All gather
+    MPI_Allgather( &buf[beginRow*col], (endRow-beginRow)*col, MPI_FLOAT,
+                    &rbuf[0], (endRow-beginRow)*col, MPI_FLOAT, MPI_COMM_WORLD);
+
+    // convert flat buffer to 2-D vector
+	for( int j = 0; j < row; j++ )
+		for( int i = 0; i < col; i++ )
+			mat[j][i] = rbuf[j*col+i];
+}
+
+
 void buildUpB( matrix &b, float rho, float dt, matrix &u, matrix &v, float dx, float dy){
 	int row = b.size();
 	int col = b[0].size();
@@ -16,7 +39,7 @@ void buildUpB( matrix &b, float rho, float dt, matrix &u, matrix &v, float dx, f
 	// parallize row loop
 	int begin = (row / nsize) * irank;
 	int end = (row / nsize) * (irank + 1);
-
+	
 
 	for( int j = begin; j < end; j++ ){
 		if( j == 0 || j == row-1 )
@@ -35,22 +58,25 @@ void buildUpB( matrix &b, float rho, float dt, matrix &u, matrix &v, float dx, f
 		}
 	}
 
-	matrix recvb( row, vector<float>(col));
-	MPI_Allgather( &b[begin][0], (end-begin)*col, MPI_FLOAT,
-					&recvb[0][0], (end-begin)*col, MPI_FLOAT,
-					MPI_COMM_WORLD);
-	
-	b = recvb;
+	allgather_helper( b, begin, end);
 }
 
 void pressurePoission( matrix &p, float rho, float dx, float dy, matrix &b, int nit){
 	int row = p.size();
 	int col = p[0].size();
 
+	// parallize row loop
+	int begin = (row / nsize) * irank;
+	int end = (row / nsize) * (irank + 1);
+	
+	
 	for( int k = 0; k < nit; k++ ){
 		matrix pn = p;
 
-		for( int j = 1; j < row-1; j++ ){
+		for( int j = begin; j < end; j++ ){
+			if( j == 0 || j == row-1 )
+				continue;
+
 			for( int i = 1; i < col-1; i++ ){
 				float tmp = ( pn[j][i+1] + p[j][i-1] ) * dy * dy;
 				tmp += ( pn[j+1][i] + pn[j-1][i] ) * dx * dx;
@@ -75,6 +101,8 @@ void pressurePoission( matrix &p, float rho, float dx, float dy, matrix &b, int 
 			p[0][i] = p[1][i];
 			p[row-1][i] = 0;
 		}
+		
+		allgather_helper( p, begin, end );	
 	}
 }
 
@@ -96,10 +124,19 @@ void cavity_flow( int nt,
 
 		// buildUpB( matrix &b, float rho, float dt, matrix &u, matrix &v, float dx, float dy)
 		buildUpB( b, rho, dt, u, v, dx, dy );
+		
 		// pressurePoission( matrix &p, float rho, float dx, float dy, matrix &b, int nit)
 		pressurePoission( p, rho, dx, dy, b, nit);
 
-		for( int j = 1; j < row-1; j++ ){
+		// parallize row loop
+		int begin = (row / nsize) * irank;
+		int end = (row / nsize) * (irank + 1);
+
+		for( int j = begin; j < end; j++ ){
+			if( j == 0 || j == row-1 )
+				continue;
+			
+
 			for( int i = 1; i < col-1; i++ ){
 				u[j][i] = un[j][i];
 				u[j][i] -= un[j][i] * dt / dx * (un[j][i] - un[j][i-1]);
@@ -134,6 +171,9 @@ void cavity_flow( int nt,
 			v[j][0] = 0;
 			v[j][col-1] = 0;
 		}
+
+		allgather_helper( u, begin, end );
+		allgather_helper( v, begin, end );
 	}
 }
 
@@ -170,6 +210,8 @@ int main( int argc, char *argv[] ){
 	*/
 	cavity_flow( nt, u, v, dt, dx, dy,
 		p, rho, nu, nit);
+	
+	MPI_Finalize();
 
 	return 0;
 }
